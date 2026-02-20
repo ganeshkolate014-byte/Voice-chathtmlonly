@@ -3,290 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Voice Chat - Discord Style</title>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <title>Voice Room (ZegoCloud SFU)</title>
+    
+    <script src="https://unpkg.com/zego-express-engine-webrtc/zego-express-engine-webrtc.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         :root {
-            --bg-primary: #36393f;
-            --bg-secondary: #2f3136;
-            --bg-tertiary: #202225;
-            --text-normal: #dcddde;
-            --text-muted: #72767d;
-            --accent: #5865F2; /* Discord Blurple */
-            --danger: #ed4245;
-            --success: #3ba55d;
+            --bg-primary: #36393f; --bg-secondary: #2f3136; --bg-tertiary: #202225;
+            --text-normal: #dcddde; --text-muted: #72767d; --accent: #5865F2;
+            --danger: #ed4245; --success: #3ba55d;
         }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        body { background-color: var(--bg-primary); color: var(--text-normal); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
+        .header { background-color: var(--bg-secondary); padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.2); z-index: 10; padding-top: env(safe-area-inset-top, 15px); }
+        .channel-name { font-weight: bold; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; }
+        .my-id-container { font-size: 0.8rem; color: var(--text-muted); text-align: right; }
+        #my-id { color: var(--accent); font-weight: bold; }
 
-        body {
-            background-color: var(--bg-primary);
-            color: var(--text-normal);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
+        .main-area { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+        .section-title { font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid var(--bg-tertiary); padding-bottom: 5px; }
+        
+        .users-grid { display: flex; flex-direction: column; gap: 15px; }
+        .user-card { background-color: var(--bg-secondary); border-radius: 12px; padding: 12px 15px; display: flex; align-items: center; gap: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .avatar { width: 50px; height: 50px; border-radius: 50%; background-color: var(--accent); display: flex; justify-content: center; align-items: center; font-size: 1.2rem; transition: 0.2s; border: 2px solid transparent; flex-shrink: 0; }
+        .speaking { border-color: var(--success); box-shadow: 0 0 0 3px var(--success); }
+        .user-info { flex: 1; overflow: hidden; }
+        .user-info h3 { font-size: 1rem; margin-bottom: 2px; }
+        .user-info p { font-size: 0.75rem; color: var(--text-muted); }
 
-        /* Header / Top Bar */
-        .header {
-            background-color: var(--bg-secondary);
-            padding: 15px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
-            z-index: 10;
-        }
+        .friend-controls { width: 35px; height: 35px; border-radius: 50%; display: flex; justify-content: center; align-items: center; background-color: var(--bg-tertiary); cursor: pointer; color: var(--text-normal); border: none; }
+        .friend-controls.muted { color: var(--danger); }
 
-        .channel-name {
-            font-weight: bold;
-            font-size: 1.1rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+        .connect-section { background-color: var(--bg-tertiary); padding: 15px; border-radius: 8px; display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
+        .connect-section input { padding: 10px; border-radius: 5px; border: none; background-color: var(--bg-secondary); color: var(--text-normal); outline: none; }
+        .btn-join { background-color: var(--success); color: white; border: none; border-radius: 5px; padding: 10px; font-weight: bold; cursor: pointer; }
 
-        .my-id-container {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            text-align: right;
-        }
+        .controls { background-color: var(--bg-tertiary); padding: 15px 20px; display: flex; justify-content: space-around; align-items: center; padding-bottom: env(safe-area-inset-bottom, 20px); }
+        .control-btn { width: 50px; height: 50px; border-radius: 50%; border: none; background-color: var(--bg-secondary); color: var(--text-normal); font-size: 1.2rem; display: flex; justify-content: center; align-items: center; cursor: pointer; }
+        .control-btn.muted { background-color: var(--text-normal); color: var(--danger); }
+        .control-btn.disconnect { background-color: var(--danger); color: white; display: none; }
+        .hidden { display: none !important; }
 
-        #my-id {
-            color: var(--accent);
-            font-weight: bold;
-            user-select: all;
-            cursor: pointer;
-            font-size: 1rem;
-        }
-
-        /* Main Chat Area */
-        .main-area {
-            flex: 1;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            overflow-y: auto;
-            gap: 20px;
-        }
-
-        .user-card {
-            background-color: var(--bg-secondary);
-            border-radius: 12px;
-            padding: 15px 20px;
-            width: 100%;
-            max-width: 350px;
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .avatar {
-            width: 55px;
-            height: 55px;
-            border-radius: 50%;
-            background-color: var(--accent);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 1.5rem;
-            transition: box-shadow 0.1s ease-in-out;
-            border: 2px solid transparent;
-        }
-
-        /* Speaking indicator (Green Ring) */
-        .speaking {
-            border-color: var(--success);
-            box-shadow: 0 0 0 3px var(--success);
-        }
-
-        .user-info h3 {
-            font-size: 1rem;
-            margin-bottom: 4px;
-        }
-
-        .user-info p {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
-        /* Friend Audio Controls */
-        .friend-controls {
-            margin-left: auto;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            background-color: var(--bg-tertiary);
-            cursor: pointer;
-            font-size: 1.1rem;
-            color: var(--text-normal);
-            border: none;
-            transition: 0.2s;
-        }
-
-        .friend-controls.muted {
-            color: var(--danger);
-        }
-
-        /* Connect Modal / Section */
-        .connect-section {
-            background-color: var(--bg-tertiary);
-            padding: 15px;
-            border-radius: 8px;
-            width: 100%;
-            max-width: 350px;
-            display: flex;
-            gap: 10px;
-            margin-top: auto;
-            margin-bottom: 20px;
-        }
-
-        .connect-section input {
-            flex: 1;
-            padding: 10px;
-            border-radius: 5px;
-            border: none;
-            background-color: var(--bg-secondary);
-            color: var(--text-normal);
-            outline: none;
-        }
-
-        .connect-btn {
-            background-color: var(--success);
-            color: white;
-            border: none;
-            border-radius: 5px;
-            padding: 0 15px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        /* Bottom Control Bar */
-        .controls {
-            background-color: var(--bg-tertiary);
-            padding: 15px 20px;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            padding-bottom: env(safe-area-inset-bottom, 20px);
-        }
-
-        .control-btn {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            border: none;
-            background-color: var(--bg-secondary);
-            color: var(--text-normal);
-            font-size: 1.2rem;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-
-        .control-btn.active {
-            color: var(--text-normal);
-        }
-
-        .control-btn.muted {
-            background-color: var(--text-normal);
-            color: var(--danger);
-        }
-
-        .control-btn.disconnect {
-            background-color: var(--danger);
-            color: white;
-            display: none;
-        }
-
-        .hidden {
-            display: none !important;
-        }
-
-        /* Overlay start screen for Audio Context permission */
-        #start-overlay {
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: rgba(0,0,0,0.8);
-            z-index: 100;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-        }
-        #start-btn {
-            padding: 15px 30px;
-            font-size: 1.2rem;
-            background-color: var(--accent);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: bold;
-        }
+        /* Hidden area for remote audio streams */
+        #audio-container { display: none; }
     </style>
 </head>
 <body>
 
-    <div id="start-overlay">
-        <h2 style="margin-bottom: 20px; text-align: center;">Welcome to Voice Room</h2>
-        <button id="start-btn" onclick="startApp()">Join with Mic</button>
-    </div>
-
-    <audio id="remote-audio" autoplay></audio>
-
     <header class="header">
-        <div class="channel-name">
-            <i class="fa-solid fa-volume-high"></i> Voice Room
-        </div>
-        <div class="my-id-container">
-            Your Fixed ID: <br><span id="my-id" onclick="copyId()">Loading...</span>
-        </div>
+        <div class="channel-name"><i class="fa-solid fa-server"></i> Voice Room</div>
+        <div class="my-id-container">Name: <br><span id="my-name">Loading...</span></div>
     </header>
 
     <main class="main-area">
         
-        <div class="user-card">
-            <div class="avatar" id="local-avatar">
-                <i class="fa-solid fa-user"></i>
-            </div>
-            <div class="user-info">
-                <h3>You</h3>
-                <p id="mic-status">Mic Active</p>
-            </div>
-        </div>
-
-        <div class="user-card hidden" id="remote-user-card">
-            <div class="avatar" id="remote-avatar">
-                <i class="fa-solid fa-user-astronaut"></i>
-            </div>
-            <div class="user-info">
-                <h3>Friend</h3>
-                <p>Connected</p>
-            </div>
-            <button class="friend-controls" id="friend-mute-btn" onclick="toggleFriendMute()">
-                <i class="fa-solid fa-volume-high" id="friend-vol-icon"></i>
-            </button>
+        <div id="voice-channel" class="hidden">
+            <div class="section-title">Voice Channel: <span id="current-room-name"></span></div>
+            <div class="users-grid" id="active-users-container">
+                <div class="user-card">
+                    <div class="avatar" id="local-avatar"><i class="fa-solid fa-user"></i></div>
+                    <div class="user-info">
+                        <h3>You</h3>
+                        <p id="mic-status">Mic Active</p>
+                    </div>
+                </div>
+                </div>
         </div>
 
         <div class="connect-section" id="connect-section">
-            <input type="text" id="friend-id" placeholder="Paste friend's ID here...">
-            <button class="connect-btn" onclick="connectToPeer()">Call</button>
+            <div class="section-title">Join a Voice Channel</div>
+            <input type="text" id="room-id" placeholder="Enter Room Name (e.g. ChillZone)">
+            <button class="btn-join" onclick="joinRoom()">Join Server</button>
         </div>
 
     </main>
@@ -295,204 +84,191 @@
         <button class="control-btn active" id="btn-mic" onclick="toggleMic()">
             <i class="fa-solid fa-microphone"></i>
         </button>
-        <button class="control-btn disconnect" id="btn-disconnect" onclick="endCall()">
+        <button class="control-btn disconnect" id="btn-disconnect" onclick="leaveRoom()">
             <i class="fa-solid fa-phone-slash"></i>
         </button>
     </div>
 
-    <script>
-        let peer;
-        let localStream;
-        let remoteStream;
-        let currentCall;
-        let isMuted = false;
-        let isFriendMuted = false;
-        let audioContext;
+    <div id="audio-container"></div>
 
-        const myIdElement = document.getElementById('my-id');
-        const remoteUserCard = document.getElementById('remote-user-card');
+    <script>
+        // --- 1. ZegoCloud Configuration ---
+        const appID = 864353224; // Aapki di hui AppID
+        const serverURL = "wss://webliveroom864353224-api.coolzcloud.com/ws"; // Aapka Server URL
+        
+        // ⚠️ ZAROORI: Browser ke liye Token chahiye. 
+        // Test karne ke liye Zego Console se "Test Token" generate karke yahan daalein:
+        const TOKEN = "YOUR_TEMP_TEST_TOKEN_HERE"; 
+
+        // Zego Engine Initialize
+        const zg = new ZegoExpressEngine(appID, serverURL);
+
+        // --- 2. User Setup ---
+        let localStream;
+        let isMuted = false;
+        let currentRoom = "";
+        
+        // Generate a random User ID and Name
+        const userID = Math.random().toString(36).substring(2, 10);
+        const userName = "User_" + Math.floor(Math.random() * 1000);
+        document.getElementById('my-name').innerText = userName;
+
+        // UI Elements
+        const activeUsersContainer = document.getElementById('active-users-container');
         const connectSection = document.getElementById('connect-section');
+        const voiceChannel = document.getElementById('voice-channel');
         const btnDisconnect = document.getElementById('btn-disconnect');
         const btnMic = document.getElementById('btn-mic');
         const micStatus = document.getElementById('mic-status');
-        const remoteAudio = document.getElementById('remote-audio');
-        const friendVolIcon = document.getElementById('friend-vol-icon');
-        const friendMuteBtn = document.getElementById('friend-mute-btn');
-        const overlay = document.getElementById('start-overlay');
+        const audioContainer = document.getElementById('audio-container');
 
-        // Initial setup function triggered by user click
-        async function startApp() {
-            overlay.style.display = 'none';
-            // Start AudioContext on user gesture
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            
+        // --- 3. Join Server (Room) ---
+        async function joinRoom() {
+            const roomID = document.getElementById('room-id').value.trim();
+            if (!roomID) return alert("Please enter a Room Name!");
+            if (TOKEN === "YOUR_TEMP_TEST_TOKEN_HERE") return alert("Developer: Please paste a Test Token in the code to run this on a browser!");
+
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                initPeer();
-                setupSpeakerDetection(localStream, 'local-avatar');
-            } catch (err) {
-                alert("Microphone permission is required!");
-                console.error(err);
-            }
-        }
+                // Login to Room
+                await zg.loginRoom(roomID, TOKEN, { userID, userName }, { userUpdate: true });
+                currentRoom = roomID;
 
-        // 1. Initialize PeerJS (With LocalStorage to keep ID permanent)
-        function initPeer() {
-            // Check if user already has an ID saved
-            let savedId = localStorage.getItem('myDiscordAppId');
-            if (!savedId) {
-                // Generate a random 6 character string if no ID exists
-                savedId = Math.random().toString(36).substring(2, 8);
-                localStorage.setItem('myDiscordAppId', savedId);
-            }
-
-            // Init peer with the saved fixed ID
-            peer = new Peer(savedId, { debug: 2 });
-
-            peer.on('open', (id) => {
-                myIdElement.innerText = id;
-            });
-
-            // Incoming call handler
-            peer.on('call', (call) => {
-                call.answer(localStream);
-                setupCallHandlers(call);
-            });
-
-            peer.on('error', (err) => {
-                if (err.type === 'unavailable-id') {
-                    alert("ID is already taken in another tab. Regenerating...");
-                    localStorage.removeItem('myDiscordAppId');
-                    initPeer();
-                } else {
-                    alert("Connection Error: " + err.type);
-                }
-            });
-        }
-
-        // 2. Connect to a friend
-        function connectToPeer() {
-            const friendId = document.getElementById('friend-id').value.trim();
-            if (!friendId) return alert("Please enter friend's ID");
-            if (!localStream) return alert("Microphone not ready yet");
-
-            const call = peer.call(friendId, localStream);
-            setupCallHandlers(call);
-        }
-
-        // 3. Handle active call
-        function setupCallHandlers(call) {
-            if (currentCall) currentCall.close();
-            currentCall = call;
-
-            call.on('stream', (rStream) => {
-                remoteStream = rStream;
-                remoteAudio.srcObject = remoteStream;
+                // Create Audio Stream
+                localStream = await zg.createStream({ camera: { audio: true, video: false } });
                 
+                // Publish Stream to Server
+                const streamID = roomID + "_" + userID;
+                zg.startPublishingStream(streamID, localStream);
+
+                // Update UI
+                document.getElementById('current-room-name').innerText = roomID;
                 connectSection.classList.add('hidden');
-                remoteUserCard.classList.remove('hidden');
+                voiceChannel.classList.remove('hidden');
                 btnDisconnect.style.display = 'flex';
 
-                // Detect when friend speaks
-                setupSpeakerDetection(remoteStream, 'remote-avatar');
-            });
+                setupSoundDetection();
 
-            call.on('close', () => {
-                resetUI();
-            });
-        }
-
-        // 4. Voice Detection Logic (To highlight avatar)
-        function setupSpeakerDetection(stream, avatarId) {
-            if (!audioContext) return;
-            
-            const analyser = audioContext.createAnalyser();
-            analyser.fftSize = 256;
-            analyser.minDecibels = -70; // Adjust sensitivity
-            
-            const source = audioContext.createMediaStreamSource(stream);
-            source.connect(analyser);
-            
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            const avatar = document.getElementById(avatarId);
-            
-            function checkVolume() {
-                analyser.getByteFrequencyData(dataArray);
-                let sum = 0;
-                for (let i = 0; i < dataArray.length; i++) {
-                    sum += dataArray[i];
-                }
-                let average = sum / dataArray.length;
-                
-                // If volume is above threshold, highlight the avatar
-                if (average > 10) {
-                    avatar.classList.add('speaking');
-                } else {
-                    avatar.classList.remove('speaking');
-                }
-                
-                // Loop this check
-                requestAnimationFrame(checkVolume);
+            } catch (err) {
+                console.error("Login failed:", err);
+                alert("Could not connect to server. Check your Token.");
             }
-            checkVolume();
         }
 
-        // 5. Local Mic Mute/Unmute
+        // --- 4. Handle Friends Joining/Leaving ---
+        zg.on('roomStreamUpdate', async (roomID, updateType, streamList, extendedData) => {
+            if (updateType === 'ADD') {
+                // When a friend joins, download their audio
+                for (const stream of streamList) {
+                    const remoteStream = await zg.startPlayingStream(stream.streamID);
+                    
+                    // Create Audio Tag
+                    const audioEl = document.createElement('audio');
+                    audioEl.id = `audio-${stream.streamID}`;
+                    audioEl.autoplay = true;
+                    audioEl.srcObject = remoteStream;
+                    audioContainer.appendChild(audioEl);
+
+                    // Add UI Card
+                    const card = document.createElement('div');
+                    card.className = 'user-card';
+                    card.id = `card-${stream.streamID}`;
+                    card.innerHTML = `
+                        <div class="avatar" id="avatar-${stream.streamID}"><i class="fa-solid fa-user-astronaut"></i></div>
+                        <div class="user-info">
+                            <h3>${stream.user.userName}</h3>
+                            <p>Connected</p>
+                        </div>
+                        <button class="friend-controls" onclick="muteFriend('${stream.streamID}')" id="mute-btn-${stream.streamID}">
+                            <i class="fa-solid fa-volume-high" id="mute-icon-${stream.streamID}"></i>
+                        </button>
+                    `;
+                    activeUsersContainer.appendChild(card);
+                }
+            } else if (updateType === 'DELETE') {
+                // Remove friend when they leave
+                for (const stream of streamList) {
+                    zg.stopPlayingStream(stream.streamID);
+                    document.getElementById(`audio-${stream.streamID}`)?.remove();
+                    document.getElementById(`card-${stream.streamID}`)?.remove();
+                }
+            }
+        });
+
+        // --- 5. High-Performance Active Speaker Highlight ---
+        // Zego automatically detects who is speaking! No Web Audio API loop needed.
+        function setupSoundDetection() {
+            zg.setSoundLevelDelegate(true, 500); // Check volume every 500ms
+            
+            zg.on('capturedSoundLevelUpdate', (soundLevel) => {
+                const avatar = document.getElementById('local-avatar');
+                if (soundLevel > 10) avatar.classList.add('speaking');
+                else avatar.classList.remove('speaking');
+            });
+
+            zg.on('remoteSoundLevelUpdate', (soundLevelMap) => {
+                for (const [streamID, soundLevel] of Object.entries(soundLevelMap)) {
+                    const avatar = document.getElementById(`avatar-${streamID}`);
+                    if (avatar) {
+                        if (soundLevel > 10) avatar.classList.add('speaking');
+                        else avatar.classList.remove('speaking');
+                    }
+                }
+            });
+        }
+
+        // --- 6. Mute Controls ---
         function toggleMic() {
             if (!localStream) return;
-            
             isMuted = !isMuted;
-            localStream.getAudioTracks()[0].enabled = !isMuted;
+            
+            // Mute local stream
+            zg.mutePublishStreamAudio(localStream, isMuted);
 
             if (isMuted) {
                 btnMic.innerHTML = '<i class="fa-solid fa-microphone-slash"></i>';
                 btnMic.classList.add('muted');
-                btnMic.classList.remove('active');
                 micStatus.innerText = "Mic Muted";
-                document.getElementById('local-avatar').classList.remove('speaking');
             } else {
                 btnMic.innerHTML = '<i class="fa-solid fa-microphone"></i>';
                 btnMic.classList.remove('muted');
-                btnMic.classList.add('active');
                 micStatus.innerText = "Mic Active";
             }
         }
 
-        // 6. Friend Audio Mute (Only on your side)
-        function toggleFriendMute() {
-            isFriendMuted = !isFriendMuted;
-            remoteAudio.muted = isFriendMuted;
+        function muteFriend(streamID) {
+            const audio = document.getElementById(`audio-${streamID}`);
+            const btn = document.getElementById(`mute-btn-${streamID}`);
+            const icon = document.getElementById(`mute-icon-${streamID}`);
+            
+            if (!audio) return;
+            audio.muted = !audio.muted;
 
-            if (isFriendMuted) {
-                friendVolIcon.className = "fa-solid fa-volume-xmark";
-                friendMuteBtn.classList.add('muted');
+            if (audio.muted) {
+                icon.className = "fa-solid fa-volume-xmark";
+                btn.classList.add('muted');
             } else {
-                friendVolIcon.className = "fa-solid fa-volume-high";
-                friendMuteBtn.classList.remove('muted');
+                icon.className = "fa-solid fa-volume-high";
+                btn.classList.remove('muted');
             }
         }
 
-        // 7. End Call Logic
-        function endCall() {
-            if (currentCall) currentCall.close();
-            resetUI();
-        }
-
-        function resetUI() {
-            remoteAudio.srcObject = null;
-            remoteUserCard.classList.add('hidden');
+        // --- 7. Leave Server ---
+        function leaveRoom() {
+            if (currentRoom) {
+                if (localStream) zg.destroyStream(localStream);
+                zg.logoutRoom(currentRoom);
+            }
+            // Reset UI
+            voiceChannel.classList.add('hidden');
             connectSection.classList.remove('hidden');
             btnDisconnect.style.display = 'none';
-            document.getElementById('remote-avatar').classList.remove('speaking');
-        }
-
-        // Copy ID helper
-        function copyId() {
-            const id = myIdElement.innerText;
-            if (id && id !== "Loading...") {
-                navigator.clipboard.writeText(id);
-                alert("ID copied to clipboard!");
-            }
+            audioContainer.innerHTML = '';
+            
+            // Remove all friend cards
+            const cards = document.querySelectorAll('.user-card');
+            cards.forEach((card, index) => {
+                if (index > 0) card.remove(); // Keep the first one (Local User)
+            });
         }
     </script>
 </body>

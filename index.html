@@ -2,389 +2,378 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NeoVoice | Raw Share</title>
-    <!-- PeerJS Library (Free Cloud Signaling) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Voice Chat (No Login)</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        /* NEO-BRUTALISM CSS */
         :root {
-            --bg-color: #ffeaa7;
-            --card-bg: #ffffff;
-            --border-color: #000000;
-            --main-color: #74b9ff; /* Blue */
-            --accent-color: #ff7675; /* Red */
-            --success-color: #55efc4; /* Green */
-            --shadow: 5px 5px 0px 0px #000000;
-            --border: 3px solid #000000;
+            --bg-primary: #36393f;
+            --bg-secondary: #2f3136;
+            --bg-tertiary: #202225;
+            --text-normal: #dcddde;
+            --text-muted: #72767d;
+            --accent: #5865F2; /* Discord Blurple */
+            --danger: #ed4245;
+            --success: #3ba55d;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
         body {
-            font-family: 'Courier New', Courier, monospace; /* Raw Font */
-            background-color: var(--bg-color);
-            margin: 0;
+            background-color: var(--bg-primary);
+            color: var(--text-normal);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header / Top Bar */
+        .header {
+            background-color: var(--bg-secondary);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            z-index: 10;
+        }
+
+        .channel-name {
+            font-weight: bold;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .my-id-container {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-align: right;
+        }
+
+        #my-id {
+            color: var(--accent);
+            font-weight: bold;
+            user-select: all;
+            cursor: pointer;
+        }
+
+        /* Main Chat Area */
+        .main-area {
+            flex: 1;
             padding: 20px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            min-height: 100vh;
-        }
-
-        h1 {
-            background: var(--main-color);
-            border: var(--border);
-            box-shadow: var(--shadow);
-            padding: 10px 20px;
-            text-transform: uppercase;
-            font-weight: 900;
-            font-size: 2rem;
-            transform: rotate(-1deg);
-            margin-bottom: 30px;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 800px;
-            display: flex;
-            flex-direction: column;
+            overflow-y: auto;
             gap: 20px;
         }
 
-        /* CARDS */
-        .card {
-            background: var(--card-bg);
-            border: var(--border);
-            box-shadow: var(--shadow);
+        .user-card {
+            background-color: var(--bg-secondary);
+            border-radius: 12px;
             padding: 20px;
-        }
-
-        /* INPUT AREA */
-        .controls-top {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        input {
-            flex: 1;
-            padding: 15px;
-            border: var(--border);
-            font-weight: bold;
-            font-family: inherit;
-            outline: none;
-            background: #f1f2f6;
-            min-width: 200px;
-        }
-
-        input:focus {
-            background: #dfe6e9;
-        }
-
-        /* BUTTONS */
-        button {
-            padding: 15px 25px;
-            border: var(--border);
-            font-weight: 900;
-            text-transform: uppercase;
-            cursor: pointer;
-            box-shadow: var(--shadow);
-            transition: all 0.1s;
-            font-family: inherit;
-        }
-
-        button:active {
-            transform: translate(2px, 2px);
-            box-shadow: 3px 3px 0px 0px #000000;
-        }
-
-        .btn-connect { background-color: var(--success-color); }
-        .btn-mute { background-color: #fab1a0; }
-        .btn-screen { background-color: var(--main-color); }
-        .btn-end { background-color: var(--accent-color); color: white; }
-
-        .active-state {
-            border-style: dashed;
-            opacity: 0.7;
-        }
-
-        /* VIDEO GRID */
-        .video-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 15px;
-            position: relative;
-        }
-
-        .video-wrapper {
-            background: #000;
-            border: var(--border);
-            box-shadow: var(--shadow);
-            aspect-ratio: 16/9;
-            position: relative;
-            overflow: hidden;
-        }
-
-        video {
             width: 100%;
-            height: 100%;
-            object-fit: cover;
+            max-width: 350px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }
 
-        /* LABELS */
-        .label {
-            position: absolute;
-            top: 0;
-            left: 0;
-            background: #000;
-            color: #fff;
-            padding: 5px 10px;
-            font-weight: bold;
-            font-size: 0.8rem;
-            z-index: 10;
-        }
-
-        /* Small Local Video Picture-in-Picture style */
-        #local-wrapper {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 150px;
-            aspect-ratio: 16/9;
-            z-index: 20;
-            border: 2px solid #fff;
-        }
-
-        /* ACTION BAR */
-        .action-bar {
+        .avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background-color: var(--accent);
             display: flex;
             justify-content: center;
-            gap: 15px;
-            margin-top: 10px;
+            align-items: center;
+            font-size: 1.5rem;
+            position: relative;
         }
 
-        /* UTILS */
-        .status {
-            font-size: 0.9rem;
+        /* Speaking indicator */
+        .speaking {
+            box-shadow: 0 0 0 3px var(--success);
+        }
+
+        .user-info h3 {
+            font-size: 1rem;
+            margin-bottom: 4px;
+        }
+
+        .user-info p {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* Connect Modal / Section */
+        .connect-section {
+            background-color: var(--bg-tertiary);
+            padding: 15px;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 350px;
+            display: flex;
+            gap: 10px;
+            margin-top: auto;
+            margin-bottom: 20px;
+        }
+
+        .connect-section input {
+            flex: 1;
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            background-color: var(--bg-secondary);
+            color: var(--text-normal);
+            outline: none;
+        }
+
+        .connect-btn {
+            background-color: var(--success);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 0 15px;
             font-weight: bold;
-            margin-bottom: 5px;
-            text-align: center;
+            cursor: pointer;
+        }
+
+        /* Bottom Control Bar */
+        .controls {
+            background-color: var(--bg-tertiary);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding-bottom: env(safe-area-inset-bottom, 20px); /* For iPhones */
+        }
+
+        .control-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            background-color: var(--bg-secondary);
+            color: var(--text-normal);
+            font-size: 1.2rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .control-btn.active {
+            color: var(--text-normal);
+        }
+
+        .control-btn.muted {
+            background-color: var(--text-normal);
+            color: var(--bg-tertiary);
+        }
+
+        .control-btn.disconnect {
+            background-color: var(--danger);
+            color: white;
+            display: none;
+        }
+
+        .hidden {
+            display: none !important;
         }
     </style>
 </head>
 <body>
 
-    <h1>Neo<span style="color:white">Chat</span></h1>
+    <audio id="remote-audio" autoplay></audio>
 
-    <div class="container">
+    <header class="header">
+        <div class="channel-name">
+            <i class="fa-solid fa-volume-high"></i> Voice Room
+        </div>
+        <div class="my-id-container">
+            Your ID: <br><span id="my-id" onclick="copyId()">Connecting...</span>
+        </div>
+    </header>
+
+    <main class="main-area">
         
-        <!-- ID PANEL -->
-        <div class="card">
-            <div class="status" id="status-text">Initializing High Quality Audio...</div>
-            <div class="controls-top">
-                <input type="text" id="my-id" readonly placeholder="Waiting for ID..." onclick="this.select()">
-                <input type="text" id="partner-id" placeholder="Paste Partner ID here">
-                <button class="btn-connect" id="btn-connect">Connect</button>
+        <div class="user-card">
+            <div class="avatar" id="local-avatar">
+                <i class="fa-solid fa-user"></i>
+            </div>
+            <div class="user-info">
+                <h3>You</h3>
+                <p id="mic-status">Mic Active</p>
             </div>
         </div>
 
-        <!-- VIDEO AREA -->
-        <div class="video-grid">
-            <!-- Remote Video (Big) -->
-            <div class="video-wrapper">
-                <div class="label">REMOTE FEED</div>
-                <video id="remote-video" autoplay playsinline></video>
+        <div class="user-card hidden" id="remote-user-card">
+            <div class="avatar speaking" id="remote-avatar">
+                <i class="fa-solid fa-user-astronaut"></i>
             </div>
-            
-            <!-- Local Video (Small Overlay) -->
-            <div class="video-wrapper" id="local-wrapper">
-                <div class="label">YOU</div>
-                <video id="local-video" autoplay playsinline muted></video>
+            <div class="user-info">
+                <h3>Friend</h3>
+                <p>Connected</p>
             </div>
         </div>
 
-        <!-- ACTIONS -->
-        <div class="action-bar">
-            <button class="btn-mute" id="btn-mute">Mute Mic</button>
-            <button class="btn-screen" id="btn-screen">Share Screen</button>
-            <button class="btn-end" onclick="location.reload()">End</button>
+        <div class="connect-section" id="connect-section">
+            <input type="text" id="friend-id" placeholder="Paste friend's ID here...">
+            <button class="connect-btn" onclick="connectToPeer()">Join</button>
         </div>
 
+    </main>
+
+    <div class="controls">
+        <button class="control-btn active" id="btn-mic" onclick="toggleMic()">
+            <i class="fa-solid fa-microphone"></i>
+        </button>
+        <button class="control-btn disconnect" id="btn-disconnect" onclick="endCall()">
+            <i class="fa-solid fa-phone-slash"></i>
+        </button>
     </div>
 
     <script>
-        // === 1. CONFIGURATION & HIGH QUALITY AUDIO ===
-        const peer = new Peer(); // Auto-generates ID from PeerJS cloud
-        
-        // Isse call quality achi hogi
-        const constraints = {
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            },
-            video: {
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-                facingMode: "user"
-            }
-        };
-
-        // === 2. VARIABLES ===
+        // WebRTC & PeerJS Variables
+        let peer;
         let localStream;
-        let remoteStream;
         let currentCall;
-        let screenStream;
         let isMuted = false;
-        let isSharing = false;
-        let camTrack; // To store camera video track when switching to screen
 
-        // Elements
-        const myIdIn = document.getElementById('my-id');
-        const partnerIdIn = document.getElementById('partner-id');
-        const btnConnect = document.getElementById('btn-connect');
-        const localVid = document.getElementById('local-video');
-        const remoteVid = document.getElementById('remote-video');
-        const statusText = document.getElementById('status-text');
+        // UI Elements
+        const myIdElement = document.getElementById('my-id');
+        const remoteUserCard = document.getElementById('remote-user-card');
+        const connectSection = document.getElementById('connect-section');
+        const btnDisconnect = document.getElementById('btn-disconnect');
+        const btnMic = document.getElementById('btn-mic');
+        const micStatus = document.getElementById('mic-status');
+        const remoteAudio = document.getElementById('remote-audio');
 
-        // === 3. INITIALIZATION ===
-        async function startApp() {
+        // 1. Initialize PeerJS (Connects to free public signaling server)
+        function initPeer() {
+            // Generate a simple random ID for the user
+            const randomId = Math.random().toString(36).substring(2, 8);
+            peer = new Peer(randomId, {
+                debug: 2
+            });
+
+            peer.on('open', (id) => {
+                myIdElement.innerText = id;
+            });
+
+            // Handle incoming calls
+            peer.on('call', (call) => {
+                // Answer automatically with our microphone stream
+                call.answer(localStream);
+                setupCallHandlers(call);
+            });
+
+            peer.on('error', (err) => {
+                alert("Error: " + err.type);
+            });
+        }
+
+        // 2. Request Microphone Access
+        async function getMicrophone() {
             try {
-                // Get Camera & Mic
-                localStream = await navigator.mediaDevices.getUserMedia(constraints);
-                localVid.srcObject = localStream;
-                
-                // Store camera track for later
-                camTrack = localStream.getVideoTracks()[0];
-
-                statusText.innerText = "Ready. Share your ID.";
-                statusText.style.color = "green";
-
-                // Setup Peer Events
-                peer.on('open', (id) => {
-                    myIdIn.value = id;
-                    console.log("My ID: " + id);
-                });
-
-                // Incoming Call Handler
-                peer.on('call', (call) => {
-                    // Auto answer or confirm
-                    if(confirm("Incoming call... Accept?")) {
-                        call.answer(localStream);
-                        handleCall(call);
-                    }
-                });
-
-                peer.on('error', (err) => {
-                    console.error(err);
-                    alert("Connection Error: " + err.type);
-                });
-
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                initPeer();
             } catch (err) {
-                statusText.innerText = "Error accessing Media Devices!";
-                alert("Please allow Camera and Microphone permissions.");
+                alert("Microphone access is required for voice chat! Please enable it in browser settings.");
+                console.error(err);
             }
         }
 
-        // === 4. CALL LOGIC ===
-        btnConnect.addEventListener('click', () => {
-            const pid = partnerIdIn.value;
-            if(!pid) return alert("Enter Partner ID");
-            statusText.innerText = "Connecting...";
-            
-            const call = peer.call(pid, localStream);
-            handleCall(call);
-        });
+        // 3. Connect to a friend's ID
+        function connectToPeer() {
+            const friendId = document.getElementById('friend-id').value.trim();
+            if (!friendId) return alert("Please enter an ID");
+            if (!localStream) return alert("Microphone not ready yet");
 
-        function handleCall(call) {
+            const call = peer.call(friendId, localStream);
+            setupCallHandlers(call);
+        }
+
+        // 4. Handle the active call
+        function setupCallHandlers(call) {
+            if (currentCall) {
+                currentCall.close();
+            }
             currentCall = call;
-            
-            call.on('stream', (stream) => {
-                remoteVid.srcObject = stream;
-                statusText.innerText = "Connected Securely.";
-                document.body.style.backgroundColor = "#dff9fb"; // Slight color change on connect
+
+            // When we receive their audio stream
+            call.on('stream', (remoteStream) => {
+                remoteAudio.srcObject = remoteStream;
+                
+                // Update UI to show connected state
+                connectSection.classList.add('hidden');
+                remoteUserCard.classList.remove('hidden');
+                btnDisconnect.style.display = 'flex';
             });
 
             call.on('close', () => {
-                alert("Call Ended");
-                location.reload();
+                resetUI();
             });
         }
 
-        // === 5. FEATURES: MUTE & SCREEN SHARE ===
-
-        // Mute Toggle
-        document.getElementById('btn-mute').addEventListener('click', function() {
-            if(!localStream) return;
-            const audioTrack = localStream.getAudioTracks()[0];
+        // 5. Mute / Unmute Logic
+        function toggleMic() {
+            if (!localStream) return;
             
             isMuted = !isMuted;
-            audioTrack.enabled = !isMuted;
+            localStream.getAudioTracks()[0].enabled = !isMuted;
 
-            this.innerText = isMuted ? "Unmute" : "Mute Mic";
-            this.style.background = isMuted ? "#ff7675" : "#fab1a0"; // Red when muted
-        });
-
-        // Screen Share Logic
-        document.getElementById('btn-screen').addEventListener('click', async function() {
-            if(!currentCall) return alert("Call connect hone ke baad screen share karein.");
-
-            if(!isSharing) {
-                // START SHARING
-                try {
-                    screenStream = await navigator.mediaDevices.getDisplayMedia({ 
-                        video: true, 
-                        audio: true // System audio bhi share karega
-                    });
-                    
-                    const screenTrack = screenStream.getVideoTracks()[0];
-
-                    // Handle "Stop Sharing" from browser popup
-                    screenTrack.onended = () => stopScreenShare();
-
-                    // Replace Camera Track with Screen Track (Magic happens here)
-                    const sender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
-                    
-                    if(sender) {
-                        await sender.replaceTrack(screenTrack);
-                        localVid.srcObject = screenStream; // Show own screen in preview
-                        
-                        isSharing = true;
-                        this.innerText = "Stop Sharing";
-                        this.classList.add('active-state');
-                    }
-                } catch(err) {
-                    console.error("Screen share cancel hua", err);
-                }
+            if (isMuted) {
+                btnMic.innerHTML = '<i class="fa-solid fa-microphone-slash"></i>';
+                btnMic.classList.add('muted');
+                btnMic.classList.remove('active');
+                micStatus.innerText = "Mic Muted";
             } else {
-                // STOP SHARING manually
-                stopScreenShare();
+                btnMic.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+                btnMic.classList.remove('muted');
+                btnMic.classList.add('active');
+                micStatus.innerText = "Mic Active";
             }
-        });
-
-        function stopScreenShare() {
-            const sender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
-            
-            // Revert to Camera
-            if(sender && camTrack) {
-                sender.replaceTrack(camTrack);
-            }
-
-            // Clean up screen tracks
-            if(screenStream) {
-                screenStream.getTracks().forEach(track => track.stop());
-            }
-
-            localVid.srcObject = localStream; // Show camera again
-            isSharing = false;
-            
-            const btn = document.getElementById('btn-screen');
-            btn.innerText = "Share Screen";
-            btn.classList.remove('active-state');
         }
 
-        // Start Everything
-        startApp();
+        // 6. End Call Logic
+        function endCall() {
+            if (currentCall) {
+                currentCall.close();
+            }
+            resetUI();
+        }
+
+        function resetUI() {
+            remoteAudio.srcObject = null;
+            remoteUserCard.classList.add('hidden');
+            connectSection.classList.remove('hidden');
+            btnDisconnect.style.display = 'none';
+        }
+
+        // Helper: Copy ID to clipboard
+        function copyId() {
+            const id = myIdElement.innerText;
+            if (id && id !== "Connecting...") {
+                navigator.clipboard.writeText(id);
+                alert("ID copied to clipboard!");
+            }
+        }
+
+        // Start everything on page load
+        window.onload = getMicrophone;
 
     </script>
 </body>

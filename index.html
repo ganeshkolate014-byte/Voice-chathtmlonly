@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Voice Chat (No Login)</title>
+    <title>Voice Chat - Discord Style</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -65,6 +65,7 @@
             font-weight: bold;
             user-select: all;
             cursor: pointer;
+            font-size: 1rem;
         }
 
         /* Main Chat Area */
@@ -81,28 +82,31 @@
         .user-card {
             background-color: var(--bg-secondary);
             border-radius: 12px;
-            padding: 20px;
+            padding: 15px 20px;
             width: 100%;
             max-width: 350px;
             display: flex;
             align-items: center;
             gap: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
 
         .avatar {
-            width: 60px;
-            height: 60px;
+            width: 55px;
+            height: 55px;
             border-radius: 50%;
             background-color: var(--accent);
             display: flex;
             justify-content: center;
             align-items: center;
             font-size: 1.5rem;
-            position: relative;
+            transition: box-shadow 0.1s ease-in-out;
+            border: 2px solid transparent;
         }
 
-        /* Speaking indicator */
+        /* Speaking indicator (Green Ring) */
         .speaking {
+            border-color: var(--success);
             box-shadow: 0 0 0 3px var(--success);
         }
 
@@ -114,6 +118,27 @@
         .user-info p {
             font-size: 0.8rem;
             color: var(--text-muted);
+        }
+
+        /* Friend Audio Controls */
+        .friend-controls {
+            margin-left: auto;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-tertiary);
+            cursor: pointer;
+            font-size: 1.1rem;
+            color: var(--text-normal);
+            border: none;
+            transition: 0.2s;
+        }
+
+        .friend-controls.muted {
+            color: var(--danger);
         }
 
         /* Connect Modal / Section */
@@ -156,7 +181,7 @@
             display: flex;
             justify-content: space-around;
             align-items: center;
-            padding-bottom: env(safe-area-inset-bottom, 20px); /* For iPhones */
+            padding-bottom: env(safe-area-inset-bottom, 20px);
         }
 
         .control-btn {
@@ -180,7 +205,7 @@
 
         .control-btn.muted {
             background-color: var(--text-normal);
-            color: var(--bg-tertiary);
+            color: var(--danger);
         }
 
         .control-btn.disconnect {
@@ -192,9 +217,36 @@
         .hidden {
             display: none !important;
         }
+
+        /* Overlay start screen for Audio Context permission */
+        #start-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0,0,0,0.8);
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        #start-btn {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
+
+    <div id="start-overlay">
+        <h2 style="margin-bottom: 20px; text-align: center;">Welcome to Voice Room</h2>
+        <button id="start-btn" onclick="startApp()">Join with Mic</button>
+    </div>
 
     <audio id="remote-audio" autoplay></audio>
 
@@ -203,7 +255,7 @@
             <i class="fa-solid fa-volume-high"></i> Voice Room
         </div>
         <div class="my-id-container">
-            Your ID: <br><span id="my-id" onclick="copyId()">Connecting...</span>
+            Your Fixed ID: <br><span id="my-id" onclick="copyId()">Loading...</span>
         </div>
     </header>
 
@@ -220,18 +272,21 @@
         </div>
 
         <div class="user-card hidden" id="remote-user-card">
-            <div class="avatar speaking" id="remote-avatar">
+            <div class="avatar" id="remote-avatar">
                 <i class="fa-solid fa-user-astronaut"></i>
             </div>
             <div class="user-info">
                 <h3>Friend</h3>
                 <p>Connected</p>
             </div>
+            <button class="friend-controls" id="friend-mute-btn" onclick="toggleFriendMute()">
+                <i class="fa-solid fa-volume-high" id="friend-vol-icon"></i>
+            </button>
         </div>
 
         <div class="connect-section" id="connect-section">
             <input type="text" id="friend-id" placeholder="Paste friend's ID here...">
-            <button class="connect-btn" onclick="connectToPeer()">Join</button>
+            <button class="connect-btn" onclick="connectToPeer()">Call</button>
         </div>
 
     </main>
@@ -246,13 +301,14 @@
     </div>
 
     <script>
-        // WebRTC & PeerJS Variables
         let peer;
         let localStream;
+        let remoteStream;
         let currentCall;
         let isMuted = false;
+        let isFriendMuted = false;
+        let audioContext;
 
-        // UI Elements
         const myIdElement = document.getElementById('my-id');
         const remoteUserCard = document.getElementById('remote-user-card');
         const connectSection = document.getElementById('connect-section');
@@ -260,67 +316,85 @@
         const btnMic = document.getElementById('btn-mic');
         const micStatus = document.getElementById('mic-status');
         const remoteAudio = document.getElementById('remote-audio');
+        const friendVolIcon = document.getElementById('friend-vol-icon');
+        const friendMuteBtn = document.getElementById('friend-mute-btn');
+        const overlay = document.getElementById('start-overlay');
 
-        // 1. Initialize PeerJS (Connects to free public signaling server)
+        // Initial setup function triggered by user click
+        async function startApp() {
+            overlay.style.display = 'none';
+            // Start AudioContext on user gesture
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                initPeer();
+                setupSpeakerDetection(localStream, 'local-avatar');
+            } catch (err) {
+                alert("Microphone permission is required!");
+                console.error(err);
+            }
+        }
+
+        // 1. Initialize PeerJS (With LocalStorage to keep ID permanent)
         function initPeer() {
-            // Generate a simple random ID for the user
-            const randomId = Math.random().toString(36).substring(2, 8);
-            peer = new Peer(randomId, {
-                debug: 2
-            });
+            // Check if user already has an ID saved
+            let savedId = localStorage.getItem('myDiscordAppId');
+            if (!savedId) {
+                // Generate a random 6 character string if no ID exists
+                savedId = Math.random().toString(36).substring(2, 8);
+                localStorage.setItem('myDiscordAppId', savedId);
+            }
+
+            // Init peer with the saved fixed ID
+            peer = new Peer(savedId, { debug: 2 });
 
             peer.on('open', (id) => {
                 myIdElement.innerText = id;
             });
 
-            // Handle incoming calls
+            // Incoming call handler
             peer.on('call', (call) => {
-                // Answer automatically with our microphone stream
                 call.answer(localStream);
                 setupCallHandlers(call);
             });
 
             peer.on('error', (err) => {
-                alert("Error: " + err.type);
+                if (err.type === 'unavailable-id') {
+                    alert("ID is already taken in another tab. Regenerating...");
+                    localStorage.removeItem('myDiscordAppId');
+                    initPeer();
+                } else {
+                    alert("Connection Error: " + err.type);
+                }
             });
         }
 
-        // 2. Request Microphone Access
-        async function getMicrophone() {
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                initPeer();
-            } catch (err) {
-                alert("Microphone access is required for voice chat! Please enable it in browser settings.");
-                console.error(err);
-            }
-        }
-
-        // 3. Connect to a friend's ID
+        // 2. Connect to a friend
         function connectToPeer() {
             const friendId = document.getElementById('friend-id').value.trim();
-            if (!friendId) return alert("Please enter an ID");
+            if (!friendId) return alert("Please enter friend's ID");
             if (!localStream) return alert("Microphone not ready yet");
 
             const call = peer.call(friendId, localStream);
             setupCallHandlers(call);
         }
 
-        // 4. Handle the active call
+        // 3. Handle active call
         function setupCallHandlers(call) {
-            if (currentCall) {
-                currentCall.close();
-            }
+            if (currentCall) currentCall.close();
             currentCall = call;
 
-            // When we receive their audio stream
-            call.on('stream', (remoteStream) => {
+            call.on('stream', (rStream) => {
+                remoteStream = rStream;
                 remoteAudio.srcObject = remoteStream;
                 
-                // Update UI to show connected state
                 connectSection.classList.add('hidden');
                 remoteUserCard.classList.remove('hidden');
                 btnDisconnect.style.display = 'flex';
+
+                // Detect when friend speaks
+                setupSpeakerDetection(remoteStream, 'remote-avatar');
             });
 
             call.on('close', () => {
@@ -328,7 +402,42 @@
             });
         }
 
-        // 5. Mute / Unmute Logic
+        // 4. Voice Detection Logic (To highlight avatar)
+        function setupSpeakerDetection(stream, avatarId) {
+            if (!audioContext) return;
+            
+            const analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            analyser.minDecibels = -70; // Adjust sensitivity
+            
+            const source = audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+            
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            const avatar = document.getElementById(avatarId);
+            
+            function checkVolume() {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < dataArray.length; i++) {
+                    sum += dataArray[i];
+                }
+                let average = sum / dataArray.length;
+                
+                // If volume is above threshold, highlight the avatar
+                if (average > 10) {
+                    avatar.classList.add('speaking');
+                } else {
+                    avatar.classList.remove('speaking');
+                }
+                
+                // Loop this check
+                requestAnimationFrame(checkVolume);
+            }
+            checkVolume();
+        }
+
+        // 5. Local Mic Mute/Unmute
         function toggleMic() {
             if (!localStream) return;
             
@@ -340,6 +449,7 @@
                 btnMic.classList.add('muted');
                 btnMic.classList.remove('active');
                 micStatus.innerText = "Mic Muted";
+                document.getElementById('local-avatar').classList.remove('speaking');
             } else {
                 btnMic.innerHTML = '<i class="fa-solid fa-microphone"></i>';
                 btnMic.classList.remove('muted');
@@ -348,11 +458,23 @@
             }
         }
 
-        // 6. End Call Logic
-        function endCall() {
-            if (currentCall) {
-                currentCall.close();
+        // 6. Friend Audio Mute (Only on your side)
+        function toggleFriendMute() {
+            isFriendMuted = !isFriendMuted;
+            remoteAudio.muted = isFriendMuted;
+
+            if (isFriendMuted) {
+                friendVolIcon.className = "fa-solid fa-volume-xmark";
+                friendMuteBtn.classList.add('muted');
+            } else {
+                friendVolIcon.className = "fa-solid fa-volume-high";
+                friendMuteBtn.classList.remove('muted');
             }
+        }
+
+        // 7. End Call Logic
+        function endCall() {
+            if (currentCall) currentCall.close();
             resetUI();
         }
 
@@ -361,20 +483,17 @@
             remoteUserCard.classList.add('hidden');
             connectSection.classList.remove('hidden');
             btnDisconnect.style.display = 'none';
+            document.getElementById('remote-avatar').classList.remove('speaking');
         }
 
-        // Helper: Copy ID to clipboard
+        // Copy ID helper
         function copyId() {
             const id = myIdElement.innerText;
-            if (id && id !== "Connecting...") {
+            if (id && id !== "Loading...") {
                 navigator.clipboard.writeText(id);
                 alert("ID copied to clipboard!");
             }
         }
-
-        // Start everything on page load
-        window.onload = getMicrophone;
-
     </script>
 </body>
 </html>
